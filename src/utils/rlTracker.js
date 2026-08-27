@@ -9,57 +9,46 @@ const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DEFAULT_EMOJIS = {
-  'Supersonic Legend': '<:SSL:1497890201656103093>',
-  'Grand Champion': '<:GC:1497890241456115843>',
-  'Champion': '<:Champ:1497890282631335987>',
-  'Diamond': '<:Diamond:1497890359144087632>',
-  'Platin': '<:Platin:1497890388642627705>',
-};
-
-const DEFAULT_PLAYERS = [
-  { name: 'wplaysg', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/Wplaysgツ/overview' },
-  { name: 'water_wall', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/WaterxWall/overview' },
-  { name: 'leon_willi', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/Zen_der205/overview' },
-  { name: 'jakobking7', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/Kayr00n/overview' },
-  { name: '_colbo', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/Colbo_GotY/overview' },
-  { name: 'pax.4u', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/one8t/overview' },
-  { name: 'rexmelonking2010_6915', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/RexyRL_/overview' },
-  { name: 'jscathe', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/Sydoez/overview' },
-  { name: 'armin2004', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/steam/76561198315201888/overview' },
-  { name: 'luca20650', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/FRAQ%20LUCA-_-/overview' },
-  { name: 'fynnifynn08', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/fynnifynn08/overview' },
-  { name: 'amotatix', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/AmoTatix/overview' },
-  { name: 'nesquicc', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/Nesquickk./overview' },
-  { name: 'knntx', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/steam/76561198450219860/overview' },
-  { name: 'byfrxzen', tracker: 'https://rocketleague.tracker.network/rocket-league/profile/epic/ByFrxzen/overview' },
-];
-
 export function loadEmojis() {
   const emojisPath = path.resolve(__dirname, '..', 'data', 'emojis.json');
-  if (fs.existsSync(emojisPath)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(emojisPath, 'utf8'));
-      if (Object.keys(data).length > 0) return { ...DEFAULT_EMOJIS, ...data };
-    } catch {}
+  if (!fs.existsSync(emojisPath)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(emojisPath, 'utf8'));
+  } catch {
+    return {};
   }
-  return DEFAULT_EMOJIS;
 }
 
 export function loadPlayers() {
   const playersPath = path.resolve(__dirname, '..', 'data', 'players.json');
-  if (fs.existsSync(playersPath)) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(playersPath, 'utf8'));
-      if (Array.isArray(raw) && raw.length > 0) {
-        return raw.map((item) => ({
-          name: typeof item === 'string' ? item : item.name || '',
-          tracker: typeof item === 'string' ? '' : item.tracker || '',
-        }));
-      }
-    } catch {}
+  if (!fs.existsSync(playersPath)) return [];
+  try {
+    const raw = JSON.parse(fs.readFileSync(playersPath, 'utf8'));
+    if (Array.isArray(raw)) {
+      return raw.map((item) => {
+        if (typeof item === 'string') {
+          return { name: item, tracker: '' };
+        }
+        return {
+          name: item.name || item.username || '',
+          tracker: item.tracker || item.url || item.link || '',
+        };
+      });
+    } else if (typeof raw === 'object' && raw !== null) {
+      return Object.entries(raw).map(([key, val]) => {
+        if (typeof val === 'string') {
+          return { name: key, tracker: val };
+        }
+        return {
+          name: val.name || key,
+          tracker: val.tracker || val.url || '',
+        };
+      });
+    }
+    return [];
+  } catch {
+    return [];
   }
-  return DEFAULT_PLAYERS;
 }
 
 export function findPlayer(query = '') {
@@ -135,12 +124,9 @@ export function parseTrackerInput(input = '') {
 export async function fetchPlayerStats(platform, identifier, matchedPlayer = null) {
   const targetPlatform = platform || 'epic';
   const targetId = identifier || matchedPlayer?.name;
-  const url = `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${targetPlatform}/${encodeURIComponent(targetId)}`;
-
-  let json = null;
 
   try {
-    const curlBin = process.platform === 'win32' ? 'curl.exe' : 'curl';
+    const url = `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${targetPlatform}/${encodeURIComponent(targetId)}`;
     const args = [
       '-s',
       '-H', 'Referer: https://rocketleague.tracker.network/',
@@ -149,57 +135,44 @@ export async function fetchPlayerStats(platform, identifier, matchedPlayer = nul
       url,
     ];
 
-    const { stdout } = await execFileAsync(curlBin, args);
+    const { stdout } = await execFileAsync('curl.exe', args);
+
     if (stdout && stdout.startsWith('{')) {
-      json = JSON.parse(stdout);
+      const data = JSON.parse(stdout);
+      const segments = data.data?.segments || [];
+      const rankedPlaylists = segments.filter((s) => s.type === 'playlist' && s.stats?.rating?.value);
+
+      const p2s = rankedPlaylists.find((s) => s.metadata?.name === 'Ranked Doubles 2v2');
+      const p3s = rankedPlaylists.find((s) => s.metadata?.name === 'Ranked Standard 3v3');
+
+      const mmr2s = p2s?.stats?.rating?.value || 0;
+      const mmr3s = p3s?.stats?.rating?.value || 0;
+
+      let calculatedMmr = 0;
+      if (mmr2s > 0 && mmr3s > 0) {
+        calculatedMmr = Number((mmr2s * 0.7 + mmr3s * 0.3).toFixed(2));
+      } else if (mmr2s > 0) {
+        calculatedMmr = mmr2s;
+      } else if (mmr3s > 0) {
+        calculatedMmr = mmr3s;
+      }
+
+      const primary = p2s || p3s || rankedPlaylists[0];
+
+      if (primary && calculatedMmr > 0) {
+        return {
+          name: data.data?.platformInfo?.platformUserHandle || targetId,
+          mmr: calculatedMmr,
+          mmr2s,
+          mmr3s,
+          rank: primary.stats?.tier?.metadata?.name || 'Unranked',
+          division: primary.stats?.division?.metadata?.name || '',
+          url: `https://rocketleague.tracker.network/rocket-league/profile/${targetPlatform}/${encodeURIComponent(targetId)}/overview`,
+        };
+      }
     }
   } catch (error) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          Referer: 'https://rocketleague.tracker.network/',
-          Accept: 'application/json',
-          'User-Agent': 'Chrome/79',
-        },
-      });
-      if (res.ok) {
-        json = await res.json();
-      }
-    } catch {}
-  }
-
-  if (json?.data) {
-    const segments = json.data.segments || [];
-    const rankedPlaylists = segments.filter((s) => s.type === 'playlist' && s.stats?.rating?.value);
-
-    const p2s = rankedPlaylists.find((s) => s.metadata?.name === 'Ranked Doubles 2v2');
-    const p3s = rankedPlaylists.find((s) => s.metadata?.name === 'Ranked Standard 3v3');
-
-    const mmr2s = p2s?.stats?.rating?.value || 0;
-    const mmr3s = p3s?.stats?.rating?.value || 0;
-
-    let calculatedMmr = 0;
-    if (mmr2s > 0 && mmr3s > 0) {
-      calculatedMmr = Number((mmr2s * 0.7 + mmr3s * 0.3).toFixed(2));
-    } else if (mmr2s > 0) {
-      calculatedMmr = mmr2s;
-    } else if (mmr3s > 0) {
-      calculatedMmr = mmr3s;
-    }
-
-    const primary = p2s || p3s || rankedPlaylists[0];
-
-    if (primary && calculatedMmr > 0) {
-      return {
-        name: json.data.platformInfo?.platformUserHandle || targetId,
-        mmr: calculatedMmr,
-        mmr2s,
-        mmr3s,
-        rank: primary.stats?.tier?.metadata?.name || 'Unranked',
-        division: primary.stats?.division?.metadata?.name || '',
-        url: `https://rocketleague.tracker.network/rocket-league/profile/${targetPlatform}/${encodeURIComponent(targetId)}/overview`,
-      };
-    }
+    console.error(`Error fetching live stats for ${targetId}:`, error.message);
   }
 
   return {
