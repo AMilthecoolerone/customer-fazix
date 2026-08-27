@@ -1,9 +1,53 @@
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
+import { WebSocketManager as WSWebSocketManager } from '@discordjs/ws';
 import { Agent } from 'undici';
 import { loadCommands } from '../handlers/commandHandler.js';
 import { loadEvents } from '../handlers/eventHandler.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/index.js';
+
+let gatewayRateLimited = false;
+
+const fallbackGatewayData = {
+  url: 'wss://gateway.discord.gg',
+  shards: 1,
+  session_start_limit: {
+    total: 1000,
+    remaining: 999,
+    reset_after: 0,
+    max_concurrency: 1,
+  },
+};
+
+const originalFetchGatewayInformation = WSWebSocketManager.prototype.fetchGatewayInformation;
+
+WSWebSocketManager.prototype.fetchGatewayInformation = async function (force = false) {
+  if (this.gatewayInformation && !force) {
+    return this.gatewayInformation.data;
+  }
+
+  if (gatewayRateLimited) {
+    logger.warn(
+      '[GATEWAY] Host IP is rate-limited on /gateway/bot. Bypassing and connecting directly to wss://gateway.discord.gg...'
+    );
+    this.gatewayInformation = { data: fallbackGatewayData, expiresAt: Date.now() + 86400000 };
+    return fallbackGatewayData;
+  }
+
+  try {
+    const fetchPromise = originalFetchGatewayInformation.call(this, force);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('GATEWAY_BOT_TIMEOUT')), 3000)
+    );
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } catch (error) {
+    logger.warn(
+      `[GATEWAY] /gateway/bot rate-limited or timed out (${error.message}). Activating direct gateway fallback...`
+    );
+    this.gatewayInformation = { data: fallbackGatewayData, expiresAt: Date.now() + 86400000 };
+    return fallbackGatewayData;
+  }
+};
 
 export class ExtendedClient extends Client {
   commands = new Collection();
@@ -17,6 +61,7 @@ export class ExtendedClient extends Client {
         GatewayIntentBits.GuildEmojisAndStickers,
       ],
       rest: {
+        rejectOnRateLimit: ['/gateway/bot'],
         agent: new Agent({
           connect: {
             family: 4,
@@ -88,13 +133,12 @@ export class ExtendedClient extends Client {
         });
 
         if (probeRes.status === 429) {
+          gatewayRateLimited = true;
           const retryAfter = probeRes.headers.get('retry-after') || 'unknown';
           const isGlobal = probeRes.headers.get('x-ratelimit-global') || 'false';
-          logger.error(
-            `CRITICAL: Host IP is RATE LIMITED by Discord (HTTP 429)!` +
-            `\n  -> Retry after: ${retryAfter}s (Global: ${isGlobal})` +
-            `\n  -> Cause: Shared host IP on Wispbyte exceeded Discord's gateway rate limit.` +
-            `\n  -> Solution: Wait for the cooldown or contact Wispbyte support to assign a fresh IP / move to another node.`
+          logger.warn(
+            `[PRE-FLIGHT] Host IP is RATE LIMITED on /gateway/bot (HTTP 429, wait: ${retryAfter}s, global: ${isGlobal})!` +
+            `\n  -> BYPASSING /gateway/bot: Connecting directly to wss://gateway.discord.gg without waiting!`
           );
         } else if (probeRes.status === 401) {
           logger.error('CRITICAL: HTTP 401 Unauthorized. The DISCORD_TOKEN in .env is invalid!');
