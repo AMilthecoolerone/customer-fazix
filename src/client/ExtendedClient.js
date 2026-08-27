@@ -61,11 +61,59 @@ export class ExtendedClient extends Client {
         logger.warn(`[GATEWAY] Shard ${id} reconnecting...`);
       });
 
+      this.rest.on('rateLimited', (rateLimitData) => {
+        logger.warn(
+          `[REST RATE-LIMIT] Hit rate limit on ${rateLimitData.route}! Wait: ${rateLimitData.retryAfter}ms | Global: ${rateLimitData.global}`
+        );
+      });
+
+      this.rest.on('invalidRequestWarning', (data) => {
+        logger.warn(`[REST WARNING] Invalid request count: ${data.count}, remaining time: ${data.remainingTime}ms`);
+      });
+
       if (process.env.DEBUG === 'true') {
         this.on('debug', (info) => logger.debug(info));
-        this.rest.on('response', (response) => {
-          logger.debug(`[REST] ${response.method.toUpperCase()} ${response.path} -> ${response.status ?? 200}`);
+        this.rest.on('response', (request, response) => {
+          const status = response?.status ?? 'unknown';
+          logger.debug(`[REST] ${request.method.toUpperCase()} ${request.path} -> HTTP ${status}`);
         });
+        this.rest.on('restDebug', (info) => logger.debug(`[REST] ${info}`));
+      }
+
+      // Pre-flight check: Test REST API & Gateway reachability directly
+      logger.info('Running pre-flight connectivity check to Discord...');
+      try {
+        const probeRes = await fetch('https://discord.com/api/v10/gateway/bot', {
+          headers: { Authorization: `Bot ${config.token}` },
+        });
+
+        if (probeRes.status === 429) {
+          const retryAfter = probeRes.headers.get('retry-after') || 'unknown';
+          const isGlobal = probeRes.headers.get('x-ratelimit-global') || 'false';
+          logger.error(
+            `CRITICAL: Host IP is RATE LIMITED by Discord (HTTP 429)!` +
+            `\n  -> Retry after: ${retryAfter}s (Global: ${isGlobal})` +
+            `\n  -> Cause: Shared host IP on Wispbyte exceeded Discord's gateway rate limit.` +
+            `\n  -> Solution: Wait for the cooldown or contact Wispbyte support to assign a fresh IP / move to another node.`
+          );
+        } else if (probeRes.status === 401) {
+          logger.error('CRITICAL: HTTP 401 Unauthorized. The DISCORD_TOKEN in .env is invalid!');
+        } else if (probeRes.status === 403) {
+          logger.error(
+            'CRITICAL: HTTP 403 Forbidden. Cloudflare or Discord has blocked this host IP!' +
+            '\n  -> Solution: Wispbyte shared IP is banned by Cloudflare. Request an IP change from Wispbyte.'
+          );
+        } else if (probeRes.ok) {
+          const gwData = await probeRes.json();
+          logger.info(
+            `[PRE-FLIGHT] REST API OK. Gateway: ${gwData.url} | Shards: ${gwData.shards} | Session starts remaining: ${gwData.session_start_limit?.remaining}/${gwData.session_start_limit?.total}`
+          );
+        } else {
+          logger.warn(`[PRE-FLIGHT] Unexpected status from Discord API: HTTP ${probeRes.status}`);
+        }
+      } catch (err) {
+        logger.error(`[PRE-FLIGHT] Failed to reach Discord API: ${err.message}`);
+        logger.error('  -> The container may lack outbound internet access or DNS resolution is failing.');
       }
 
       logger.info('Logging in to Discord...');
@@ -73,9 +121,9 @@ export class ExtendedClient extends Client {
       const loginTimeout = setTimeout(() => {
         logger.warn(
           'Still waiting for Discord Gateway login... If this hangs on your host:' +
-          '\n  1. Make sure your local bot instance is stopped (2 instances conflict on gateway).' +
-          '\n  2. Check if Privileged Gateway Intents (Server Members) are enabled in Discord Developer Portal.' +
-          '\n  3. Set DEBUG=true in .env on your host to inspect the exact gateway handshake.'
+          '\n  1. The host IP might be rate-limited by Discord (429) or blocked by Cloudflare (1015).' +
+          '\n  2. Make sure your local bot instance is stopped (2 instances conflict on gateway).' +
+          '\n  3. Check if Privileged Gateway Intents (Server Members) are enabled in Discord Developer Portal.'
         );
       }, 20000);
 
