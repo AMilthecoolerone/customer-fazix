@@ -1,5 +1,8 @@
 import dns from 'node:dns';
 import net from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
+import tls from 'node:tls';
 import { Agent, setGlobalDispatcher } from 'undici';
 import { ExtendedClient } from './client/ExtendedClient.js';
 import { logger } from './utils/logger.js';
@@ -19,6 +22,21 @@ dns.lookup = function (hostname, options, callback) {
   return originalLookup.call(dns, hostname, options, callback);
 };
 
+// Also patch dns.promises.lookup
+if (dns.promises && dns.promises.lookup) {
+  const originalPromisesLookup = dns.promises.lookup;
+  dns.promises.lookup = async function (hostname, options) {
+    if (typeof options === 'number') {
+      options = { family: 4 };
+    } else if (typeof options === 'object' && options !== null) {
+      options = { ...options, family: 4 };
+    } else {
+      options = { family: 4 };
+    }
+    return originalPromisesLookup.call(dns.promises, hostname, options);
+  };
+}
+
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
 }
@@ -27,6 +45,31 @@ if (dns.setDefaultResultOrder) {
 if (net.setDefaultAutoSelectFamily) {
   net.setDefaultAutoSelectFamily(false);
 }
+
+// Force global HTTP/HTTPS agents to use IPv4. This affects `ws` package.
+if (http.globalAgent) http.globalAgent.options.family = 4;
+if (https.globalAgent) https.globalAgent.options.family = 4;
+
+// Monkey-patch tls.connect and net.connect just to be absolutely sure for WS
+const originalTlsConnect = tls.connect;
+tls.connect = function (...args) {
+  let options = args.find((arg) => typeof arg === 'object' && arg !== null) || {};
+  options.family = 4;
+  if (args.length > 0 && typeof args[0] === 'object') {
+    args[0].family = 4;
+  }
+  return originalTlsConnect.apply(this, args);
+};
+
+const originalNetConnect = net.connect;
+net.connect = function (...args) {
+  let options = args.find((arg) => typeof arg === 'object' && arg !== null) || {};
+  options.family = 4;
+  if (args.length > 0 && typeof args[0] === 'object') {
+    args[0].family = 4;
+  }
+  return originalNetConnect.apply(this, args);
+};
 
 // Force Undici (the HTTP engine used by discord.js / fetch) to use IPv4.
 setGlobalDispatcher(
