@@ -4,6 +4,7 @@ import {
   TextDisplayBuilder,
   SeparatorBuilder,
   MessageFlags,
+  PermissionFlagsBits,
 } from 'discord.js';
 import {
   parseTrackerInput,
@@ -50,6 +51,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName('create-team')
     .setDescription('Erstellt dein esports team mit Live-MMR')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((option) =>
       option
         .setName('team-name')
@@ -110,6 +112,14 @@ export default {
   },
 
   async execute(interaction, client) {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({
+        content: 'Nur Administratoren dürfen diesen Befehl verwenden.',
+        ephemeral: true,
+      });
+      return;
+    }
+
     await interaction.deferReply();
 
     const teamName = interaction.options.getString('team-name');
