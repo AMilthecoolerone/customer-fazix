@@ -64,6 +64,44 @@ export function searchPlayers(query = '') {
   return players.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 25);
 }
 
+export function savePlayers(players) {
+  const playersPath = path.resolve(__dirname, '..', 'data', 'players.json');
+  const dir = path.dirname(playersPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.writeFileSync(playersPath, JSON.stringify(players, null, 2), 'utf8');
+}
+
+export function addOrUpdatePlayer(name, tracker = '') {
+  const cleanName = (name || '').trim();
+  if (!cleanName) throw new Error('Spielername darf nicht leer sein.');
+
+  let cleanTracker = (tracker || '').trim();
+  if (!cleanTracker) {
+    cleanTracker = `https://rocketleague.tracker.network/rocket-league/profile/epic/${encodeURIComponent(cleanName)}/overview`;
+  }
+
+  const players = loadPlayers();
+  const index = players.findIndex((p) => p.name.toLowerCase() === cleanName.toLowerCase());
+
+  let isNew = false;
+  let player;
+
+  if (index >= 0) {
+    players[index].tracker = cleanTracker;
+    player = players[index];
+  } else {
+    player = { name: cleanName, tracker: cleanTracker };
+    players.push(player);
+    isNew = true;
+  }
+
+  savePlayers(players);
+  return { player, isNew };
+}
+
+
 export function getRankEmoji(rankName = '') {
   const custom = loadEmojis();
   const r = rankName.toLowerCase();

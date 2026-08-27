@@ -11,13 +11,10 @@ import {
     getRankEmoji,
     searchPlayers,
 } from '../utils/rlTracker.js';
-
-const TEAM_EMOJIS = {
-    'Team OGs': '<:OGs:1539014735675265144>',
-    'Team Orbit': '<:Orbit:1534937900758601739>',
-    'Team Nova': '<:Nova:1536110649174790245>',
-    'Team Main': '<:Main:1540098795264680058>',
-};
+import {
+    searchTeams,
+    getTeamEmoji,
+} from '../utils/teams.js';
 
 async function resolveMemberPing(guild, username) {
     if (!guild || !username) return `@${username}`;
@@ -53,14 +50,9 @@ export default {
         .addStringOption((option) =>
             option
                 .setName('team-name')
-                .setDescription('Wähle das Team')
+                .setDescription('Wähle oder tippe das Team')
                 .setRequired(true)
-                .addChoices(
-                    { name: 'Team OGs', value: 'Team OGs' },
-                    { name: 'Team Orbit', value: 'Team Orbit' },
-                    { name: 'Team Nova', value: 'Team Nova' },
-                    { name: 'Team Main', value: 'Team Main' }
-                )
+                .setAutocomplete(true)
         )
         .addStringOption((option) =>
             option
@@ -103,10 +95,17 @@ export default {
 
     async autocomplete(interaction) {
         const focused = interaction.options.getFocused(true);
-        const matches = searchPlayers(focused.value);
-        await interaction.respond(
-            matches.map((p) => ({ name: p.name, value: p.name }))
-        );
+        if (focused.name === 'team-name') {
+            const matches = searchTeams(focused.value);
+            await interaction.respond(
+                matches.map((t) => ({ name: t.name, value: t.name }))
+            );
+        } else {
+            const matches = searchPlayers(focused.value);
+            await interaction.respond(
+                matches.map((p) => ({ name: p.name, value: p.name }))
+            );
+        }
     },
 
     async execute(interaction, client) {
@@ -172,7 +171,7 @@ export default {
             playerLines.push(`📋 ❯ 🧢 Coach: ${coachPing}`);
         }
 
-        const teamEmoji = TEAM_EMOJIS[teamName] || '🏆';
+        const teamEmoji = getTeamEmoji(teamName, interaction.guild);
 
         const container = new ContainerBuilder()
             .setAccentColor(0xe91e63)

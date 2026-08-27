@@ -10,7 +10,11 @@ export class ExtendedClient extends Client {
 
   constructor(options = {}) {
     super({
-      intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+      intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildEmojisAndStickers,
+      ],
       ...options,
     });
   }
