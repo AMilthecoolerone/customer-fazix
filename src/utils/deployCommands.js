@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { REST, Routes } from 'discord.js';
+import { Agent } from 'undici';
 import dotenv from 'dotenv';
 import { logger } from './logger.js';
 
@@ -54,7 +55,10 @@ async function deploy() {
     }
   }
 
-  const rest = new REST({ version: '10' }).setToken(token);
+  const rest = new REST({
+    version: '10',
+    agent: new Agent({ connect: { family: 4 } }),
+  }).setToken(token);
 
   try {
     if (guildId) {

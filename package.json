@@ -4,7 +4,7 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/index.js",
+    "dev": "node --watch --watch-path=src --watch-path=.env src/index.js",
     "start": "node src/index.js",
     "deploy": "node src/utils/deployCommands.js"
   },

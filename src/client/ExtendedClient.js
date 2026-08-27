@@ -1,4 +1,5 @@
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
+import { Agent } from 'undici';
 import { loadCommands } from '../handlers/commandHandler.js';
 import { loadEvents } from '../handlers/eventHandler.js';
 import { logger } from '../utils/logger.js';
@@ -15,6 +16,13 @@ export class ExtendedClient extends Client {
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildEmojisAndStickers,
       ],
+      rest: {
+        agent: new Agent({
+          connect: {
+            family: 4,
+          },
+        }),
+      },
       ...options,
     });
   }
@@ -34,6 +42,9 @@ export class ExtendedClient extends Client {
 
       if (process.env.DEBUG === 'true') {
         this.on('debug', (info) => logger.debug(info));
+        this.rest.on('response', (response) => {
+          logger.debug(`[REST] ${response.method.toUpperCase()} ${response.path} -> ${response.status ?? 200}`);
+        });
       }
 
       logger.info('Logging in to Discord...');
