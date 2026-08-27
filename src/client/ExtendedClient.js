@@ -25,6 +25,7 @@ export class ExtendedClient extends Client {
       logger.info('Starting bot...');
       await loadCommands(this);
       await loadEvents(this);
+      logger.info('Logging in to Discord...');
       await this.login(config.token);
     } catch (error) {
       logger.error('Failed to start client:', error);

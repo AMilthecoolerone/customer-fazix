@@ -23,8 +23,16 @@ function getJsFiles(dir) {
 }
 
 export async function loadEvents(client) {
-  const eventsPath = path.resolve(__dirname, '..', 'events');
+  let eventsPath = path.resolve(__dirname, '..', 'events');
+  if (!fs.existsSync(eventsPath)) {
+    const altPath = path.resolve(__dirname, '..', 'Events');
+    if (fs.existsSync(altPath)) eventsPath = altPath;
+  }
+
   const files = getJsFiles(eventsPath);
+  if (files.length === 0) {
+    logger.warn(`No .js event files found in: ${eventsPath}`);
+  }
   let loaded = 0;
 
   for (const fullPath of files) {

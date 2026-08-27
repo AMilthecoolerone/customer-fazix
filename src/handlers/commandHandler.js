@@ -25,7 +25,12 @@ function getJsFiles(dir) {
 export async function loadCommands(client) {
   client.commands.clear();
 
-  const commandsPath = path.resolve(__dirname, '..', 'commands');
+  let commandsPath = path.resolve(__dirname, '..', 'commands');
+  if (!fs.existsSync(commandsPath)) {
+    const altPath = path.resolve(__dirname, '..', 'Commands');
+    if (fs.existsSync(altPath)) commandsPath = altPath;
+  }
+
   const files = getJsFiles(commandsPath);
   let loaded = 0;
 
