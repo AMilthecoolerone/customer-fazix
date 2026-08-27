@@ -1,10 +1,14 @@
+import { createRequire } from 'node:module';
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
-import { WebSocketManager as WSWebSocketManager } from '@discordjs/ws';
+import { WebSocketManager as WSWebSocketManagerESM } from '@discordjs/ws';
 import { Agent } from 'undici';
 import { loadCommands } from '../handlers/commandHandler.js';
 import { loadEvents } from '../handlers/eventHandler.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/index.js';
+
+const require = createRequire(import.meta.url);
+const { WebSocketManager: WSWebSocketManagerCJS } = require('@discordjs/ws');
 
 let gatewayRateLimited = false;
 
@@ -19,35 +23,39 @@ const fallbackGatewayData = {
   },
 };
 
-const originalFetchGatewayInformation = WSWebSocketManager.prototype.fetchGatewayInformation;
+// Patch both CJS (used by discord.js internally) and ESM instances of WebSocketManager
+for (const WSManager of [WSWebSocketManagerCJS, WSWebSocketManagerESM]) {
+  if (!WSManager || !WSManager.prototype) continue;
+  const originalFetchGatewayInformation = WSManager.prototype.fetchGatewayInformation;
 
-WSWebSocketManager.prototype.fetchGatewayInformation = async function (force = false) {
-  if (this.gatewayInformation && !force) {
-    return this.gatewayInformation.data;
-  }
+  WSManager.prototype.fetchGatewayInformation = async function (force = false) {
+    if (this.gatewayInformation && !force) {
+      return this.gatewayInformation.data;
+    }
 
-  if (gatewayRateLimited) {
-    logger.warn(
-      '[GATEWAY] Host IP is rate-limited on /gateway/bot. Bypassing and connecting directly to wss://gateway.discord.gg...'
-    );
-    this.gatewayInformation = { data: fallbackGatewayData, expiresAt: Date.now() + 86400000 };
-    return fallbackGatewayData;
-  }
+    if (gatewayRateLimited) {
+      logger.warn(
+        '[GATEWAY] Host IP is rate-limited on /gateway/bot. Bypassing and connecting directly to wss://gateway.discord.gg...'
+      );
+      this.gatewayInformation = { data: fallbackGatewayData, expiresAt: Date.now() + 86400000 };
+      return fallbackGatewayData;
+    }
 
-  try {
-    const fetchPromise = originalFetchGatewayInformation.call(this, force);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('GATEWAY_BOT_TIMEOUT')), 3000)
-    );
-    return await Promise.race([fetchPromise, timeoutPromise]);
-  } catch (error) {
-    logger.warn(
-      `[GATEWAY] /gateway/bot rate-limited or timed out (${error.message}). Activating direct gateway fallback...`
-    );
-    this.gatewayInformation = { data: fallbackGatewayData, expiresAt: Date.now() + 86400000 };
-    return fallbackGatewayData;
-  }
-};
+    try {
+      const fetchPromise = originalFetchGatewayInformation.call(this, force);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('GATEWAY_BOT_TIMEOUT')), 3000)
+      );
+      return await Promise.race([fetchPromise, timeoutPromise]);
+    } catch (error) {
+      logger.warn(
+        `[GATEWAY] /gateway/bot rate-limited or timed out (${error.name || error.message}). Activating direct gateway fallback...`
+      );
+      this.gatewayInformation = { data: fallbackGatewayData, expiresAt: Date.now() + 86400000 };
+      return fallbackGatewayData;
+    }
+  };
+}
 
 export class ExtendedClient extends Client {
   commands = new Collection();
