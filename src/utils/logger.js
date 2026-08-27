@@ -30,6 +30,10 @@ export const logger = {
     console.warn(`${getTimestamp()} ${colors.yellow}${colors.bold}[WARN]${colors.reset} ${message}`, ...args);
   },
 
+  debug(message, ...args) {
+    console.log(`${getTimestamp()} ${colors.gray}${colors.bold}[DEBUG]${colors.reset} ${message}`, ...args);
+  },
+
   error(message, error) {
     console.error(`${getTimestamp()} ${colors.red}${colors.bold}[ERROR]${colors.reset} ${message}`);
     if (error) {
