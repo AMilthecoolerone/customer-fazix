@@ -6,21 +6,30 @@ import { logger } from '../utils/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function getJsFiles(dir) {
+  let files = [];
+  if (!fs.existsSync(dir)) return files;
+
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files = files.concat(getJsFiles(fullPath));
+    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
 export async function loadCommands(client) {
   client.commands.clear();
 
   const commandsPath = path.resolve(__dirname, '..', 'commands');
-  if (!fs.existsSync(commandsPath)) return;
-
-  const entries = fs.readdirSync(commandsPath, { withFileTypes: true, recursive: true });
+  const files = getJsFiles(commandsPath);
   let loaded = 0;
 
-  for (const entry of entries) {
-    if (entry.isDirectory()) continue;
-    if (!entry.name.endsWith('.js')) continue;
-
-    const fullPath = path.join(entry.parentPath || commandsPath, entry.name);
-
+  for (const fullPath of files) {
     try {
       const fileUrl = pathToFileURL(fullPath).href;
       const imported = await import(fileUrl);
