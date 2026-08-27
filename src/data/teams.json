@@ -1,22 +1,27 @@
 [
   {
     "name": "Team OGs",
-    "emoji": "<:OGs:1542597015370731551>"
+    "emoji": "<:OGs:1542597015370731551>",
+    "logo": ""
   },
   {
     "name": "Team Orbit",
-    "emoji": "<:Orbit:1542597142038847568>"
+    "emoji": "<:Orbit:1542597142038847568>",
+    "logo": ""
   },
   {
     "name": "Team Nova",
-    "emoji": "<:Nova:1542597071507423232>"
+    "emoji": "<:Nova:1542597071507423232>",
+    "logo": ""
   },
   {
     "name": "Team Main",
-    "emoji": "<:Main:1542596895610900551>"
+    "emoji": "<:Main:1542596895610900551>",
+    "logo": ""
   },
   {
     "name": "Skyfall",
-    "emoji": "🧪"
+    "emoji": "<:Skyfall:1542614186138275870>",
+    "logo": "https://cdn.discordapp.com/emojis/1542614186138275870.png"
   }
 ]

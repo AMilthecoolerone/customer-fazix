@@ -101,6 +101,17 @@ export function addOrUpdatePlayer(name, tracker = '') {
   return { player, isNew };
 }
 
+export function deletePlayer(name) {
+  const cleanName = (name || '').trim().toLowerCase();
+  const players = loadPlayers();
+  const index = players.findIndex((p) => p.name.toLowerCase() === cleanName);
+  if (index === -1) {
+    return { success: false, player: null };
+  }
+  const [deletedPlayer] = players.splice(index, 1);
+  savePlayers(players);
+  return { success: true, player: deletedPlayer };
+}
 
 export function getRankEmoji(rankName = '') {
   const custom = loadEmojis();

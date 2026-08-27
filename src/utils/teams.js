@@ -24,6 +24,7 @@ export function loadTeams() {
       return raw.map((item) => ({
         name: typeof item === 'string' ? item : item.name || '',
         emoji: typeof item === 'object' && item.emoji ? item.emoji : '🏆',
+        logo: typeof item === 'object' && item.logo ? item.logo : '',
       })).filter((t) => t.name.length > 0);
     }
     return [...DEFAULT_TEAMS];
@@ -40,7 +41,7 @@ export function saveTeams(teams) {
   fs.writeFileSync(TEAMS_PATH, JSON.stringify(teams, null, 2), 'utf8');
 }
 
-export function addOrUpdateTeam(name, emoji = '') {
+export function addOrUpdateTeam(name, emoji = '', logo = '') {
   const cleanName = (name || '').trim();
   if (!cleanName) throw new Error('Team-Name darf nicht leer sein.');
 
@@ -52,16 +53,29 @@ export function addOrUpdateTeam(name, emoji = '') {
   let team;
 
   if (index >= 0) {
-    teams[index].emoji = cleanEmoji;
+    if (cleanEmoji) teams[index].emoji = cleanEmoji;
+    if (logo) teams[index].logo = logo;
     team = teams[index];
   } else {
-    team = { name: cleanName, emoji: cleanEmoji };
+    team = { name: cleanName, emoji: cleanEmoji, logo: logo || '' };
     teams.push(team);
     isNew = true;
   }
 
   saveTeams(teams);
   return { team, isNew };
+}
+
+export function deleteTeam(name) {
+  const cleanName = (name || '').trim().toLowerCase();
+  const teams = loadTeams();
+  const index = teams.findIndex((t) => t.name.toLowerCase() === cleanName);
+  if (index === -1) {
+    return { success: false, team: null };
+  }
+  const [deletedTeam] = teams.splice(index, 1);
+  saveTeams(teams);
+  return { success: true, team: deletedTeam };
 }
 
 export function searchTeams(query = '') {

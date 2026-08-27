@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   SlashCommandBuilder,
   ContainerBuilder,
@@ -7,6 +10,9 @@ import {
 } from 'discord.js';
 import { addOrUpdateTeam } from '../utils/teams.js';
 import { addOrUpdatePlayer } from '../utils/rlTracker.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function resolveMemberPing(guild, username) {
   if (!guild || !username) return `@${username}`;
@@ -49,11 +55,11 @@ export default {
             .setDescription('Name des Teams (z. B. Team Pulse)')
             .setRequired(true)
         )
-        .addStringOption((option) =>
+        .addAttachmentOption((option) =>
           option
-            .setName('emoji')
-            .setDescription('Team-Emoji oder Icon (z. B. <:tag:id> oder 🏆)')
-            .setRequired(false)
+            .setName('logo')
+            .setDescription('Team-Logo (PNG oder Bilddatei)')
+            .setRequired(true)
         )
     )
     .addSubcommand((subcommand) =>
@@ -82,19 +88,84 @@ export default {
     try {
       if (subcommand === 'team') {
         const name = interaction.options.getString('name');
-        const emoji = interaction.options.getString('emoji') || '🏆';
+        const logoAttachment = interaction.options.getAttachment('logo');
 
-        const { team, isNew } = addOrUpdateTeam(name, emoji);
+        if (!logoAttachment || !logoAttachment.contentType?.startsWith('image/')) {
+          await interaction.editReply({
+            content: '❌ Bitte lade eine gültige Bilddatei (z. B. PNG) für das Team-Logo hoch.',
+          });
+          return;
+        }
+
+        // Download the logo image buffer
+        const response = await fetch(logoAttachment.url);
+        if (!response.ok) {
+          throw new Error('Konnte die Bilddatei des Logos nicht herunterladen.');
+        }
+        const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+        // Save a local copy in src/data/logos
+        const logosDir = path.resolve(__dirname, '..', 'data', 'logos');
+        if (!fs.existsSync(logosDir)) {
+          fs.mkdirSync(logosDir, { recursive: true });
+        }
+        const fileExt = path.extname(logoAttachment.name || '') || '.png';
+        const safeFileName = name.toLowerCase().replace(/[^a-z0-9]/g, '_') + fileExt;
+        const localLogoPath = path.join(logosDir, safeFileName);
+        fs.writeFileSync(localLogoPath, imageBuffer);
+
+        // Sanitize emoji name for Discord (2-32 characters, alphanumeric and underscores)
+        let cleanEmojiName = name
+          .replace(/^team\s+/i, '')
+          .trim()
+          .replace(/[^a-zA-Z0-9_]/g, '_')
+          .replace(/_+/g, '_')
+          .replace(/^_+|_+$/g, '');
+
+        if (cleanEmojiName.length < 2) {
+          cleanEmojiName = `team_${cleanEmojiName || 'logo'}`;
+        }
+        cleanEmojiName = cleanEmojiName.slice(0, 32);
+
+        let emojiString = '🏆';
+        let logoUrl = logoAttachment.url;
+
+        // Create or update the server emoji with the uploaded logo
+        if (interaction.guild) {
+          try {
+            const existingEmoji = interaction.guild.emojis.cache.find(
+              (e) => e.name.toLowerCase() === cleanEmojiName.toLowerCase()
+            );
+            if (existingEmoji) {
+              try {
+                await existingEmoji.delete('Team-Logo wird aktualisiert');
+              } catch {}
+            }
+
+            const createdEmoji = await interaction.guild.emojis.create({
+              attachment: imageBuffer,
+              name: cleanEmojiName,
+              reason: `Team-Logo für ${name}`,
+            });
+
+            emojiString = createdEmoji.toString();
+            logoUrl = createdEmoji.url;
+          } catch (emojiErr) {
+            console.error('Konnte Guild-Emoji nicht erstellen:', emojiErr.message);
+          }
+        }
+
+        const { team, isNew } = addOrUpdateTeam(name, emojiString, logoUrl);
 
         const title = isNew
           ? '## ✅ Neues Team hinzugefügt'
           : '## 🔄 Team aktualisiert';
 
         const lines = [
-          `**Name:** ${team.emoji} ${team.name}`,
-          `**Emoji:** \`${team.emoji}\``,
+          `**Name:** ${team.emoji} **${team.name}**`,
+          `**Logo / Emoji:** ${team.emoji}`,
           '',
-          '📌 *Das Team ist ab sofort in `/create-team` auswählbar!*',
+          '📌 *Das Team ist ab sofort in `/create-team` mit dem neuen Logo verfügbar!*',
         ];
 
         const container = new ContainerBuilder()
