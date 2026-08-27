@@ -40,6 +40,27 @@ export class ExtendedClient extends Client {
 
       this.on('warn', (warning) => logger.warn(`Discord Gateway warning: ${warning}`));
 
+      this.on('shardReady', (id) => {
+        logger.success(`[GATEWAY] Shard ${id} connected and ready!`);
+      });
+
+      this.on('shardDisconnect', (event, id) => {
+        logger.warn(`[GATEWAY] Shard ${id} disconnected (code ${event.code}: ${event.reason || 'none'})`);
+        if (event.code === 4014) {
+          logger.error('CRITICAL: Code 4014 (Disallowed Intents). "Server Members Intent" must be enabled in Discord Developer Portal!');
+        } else if (event.code === 4004) {
+          logger.error('CRITICAL: Code 4004 (Authentication Failed). The provided DISCORD_TOKEN is invalid!');
+        }
+      });
+
+      this.on('shardError', (error, id) => {
+        logger.error(`[GATEWAY] Shard ${id} WebSocket error:`, error);
+      });
+
+      this.on('shardReconnecting', (id) => {
+        logger.warn(`[GATEWAY] Shard ${id} reconnecting...`);
+      });
+
       if (process.env.DEBUG === 'true') {
         this.on('debug', (info) => logger.debug(info));
         this.rest.on('response', (response) => {
@@ -56,7 +77,7 @@ export class ExtendedClient extends Client {
           '\n  2. Check if Privileged Gateway Intents (Server Members) are enabled in Discord Developer Portal.' +
           '\n  3. Set DEBUG=true in .env on your host to inspect the exact gateway handshake.'
         );
-      }, 10000);
+      }, 20000);
 
       await this.login(config.token);
       clearTimeout(loginTimeout);
