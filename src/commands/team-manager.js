@@ -7,10 +7,10 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import {
+  loadPlayers,
   parseTrackerInput,
   fetchPlayerStats,
   getRankEmoji,
-  searchPlayers,
 } from '../utils/rlTracker.js';
 
 const TEAM_EMOJIS = {
@@ -19,6 +19,10 @@ const TEAM_EMOJIS = {
   'Team Nova': '<:Nova:1536110649174790245>',
   'Team Main': '<:Main:1540098795264680058>',
 };
+
+const playerChoices = loadPlayers()
+  .slice(0, 25)
+  .map((p) => ({ name: p.name, value: p.name }));
 
 async function resolveMemberPing(guild, username) {
   if (!guild || !username) return `@${username}`;
@@ -67,49 +71,41 @@ export default {
     .addStringOption((option) =>
       option
         .setName('main-spieler1')
-        .setDescription('Captain aus players.json oder Name/Link')
+        .setDescription('Captain')
         .setRequired(true)
-        .setAutocomplete(true)
+        .addChoices(...playerChoices)
     )
     .addStringOption((option) =>
       option
         .setName('main-spieler2')
-        .setDescription('Spieler 2 aus players.json oder Name/Link')
+        .setDescription('Spieler 2')
         .setRequired(true)
-        .setAutocomplete(true)
+        .addChoices(...playerChoices)
     )
     .addStringOption((option) =>
       option
         .setName('main-spieler3')
-        .setDescription('Spieler 3 aus players.json oder Name/Link')
+        .setDescription('Spieler 3')
         .setRequired(true)
-        .setAutocomplete(true)
+        .addChoices(...playerChoices)
     )
     .addStringOption((option) =>
       option
         .setName('sub-1')
-        .setDescription('Sub 1 aus players.json oder Name/Link')
+        .setDescription('Sub 1 (optional)')
         .setRequired(false)
-        .setAutocomplete(true)
+        .addChoices(...playerChoices)
     )
     .addStringOption((option) =>
       option
         .setName('sub-2')
-        .setDescription('Sub 2 aus players.json oder Name/Link')
+        .setDescription('Sub 2 (optional)')
         .setRequired(false)
-        .setAutocomplete(true)
+        .addChoices(...playerChoices)
     )
     .addStringOption((option) =>
       option.setName('coach').setDescription('Der Coach (optional)').setRequired(false)
     ),
-
-  async autocomplete(interaction) {
-    const focused = interaction.options.getFocused(true);
-    const matches = searchPlayers(focused.value);
-    await interaction.respond(
-      matches.map((p) => ({ name: p.name, value: p.name }))
-    );
-  },
 
   async execute(interaction, client) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
