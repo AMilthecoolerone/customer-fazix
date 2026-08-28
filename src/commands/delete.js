@@ -86,9 +86,7 @@ export default {
             if (guildEmoji) {
               try {
                 await guildEmoji.delete('Team wurde gelöscht');
-              } catch (emojiErr) {
-                console.error('Konnte Guild-Emoji nicht löschen:', emojiErr.message);
-              }
+              } catch {}
             }
           }
         }

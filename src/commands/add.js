@@ -149,10 +149,8 @@ export default {
             });
 
             emojiString = createdEmoji.toString();
-            logoUrl = createdEmoji.url;
-          } catch (emojiErr) {
-            console.error('Konnte Guild-Emoji nicht erstellen:', emojiErr.message);
-          }
+            logoUrl = createdEmoji.imageURL();
+          } catch {}
         }
 
         const { team, isNew } = addOrUpdateTeam(name, emojiString, logoUrl);

@@ -220,9 +220,7 @@ export async function fetchPlayerStats(platform, identifier, matchedPlayer = nul
         };
       }
     }
-  } catch (error) {
-    console.error(`Error fetching live stats for ${targetId}:`, error.message);
-  }
+  } catch {}
 
   return {
     name: targetId,
