@@ -55,7 +55,13 @@ export default {
     } else if (subcommand === 'player') {
       const matches = searchPlayers(focused.value);
       await interaction.respond(
-        matches.map((p) => ({ name: p.name, value: p.name }))
+        matches.map((p) => {
+          const mmrInfo = p.mmr ? ` (${p.mmr} MMR)` : '';
+          return {
+            name: `${p.name}${mmrInfo}`.slice(0, 100),
+            value: p.name,
+          };
+        })
       );
     }
   },

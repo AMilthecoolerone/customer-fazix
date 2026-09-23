@@ -9,7 +9,7 @@ import {
   MessageFlags,
 } from 'discord.js';
 import { addOrUpdateTeam } from '../utils/teams.js';
-import { addOrUpdatePlayer } from '../utils/rlTracker.js';
+import { addOrUpdatePlayer, getRankEmoji } from '../utils/rlTracker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,7 +31,7 @@ async function resolveMemberPing(guild, username) {
     try {
       const fetched = await guild.members.fetch({ query: clean, limit: 1 });
       member = fetched.first();
-    } catch {}
+    } catch { }
   }
 
   if (member) {
@@ -71,6 +71,26 @@ export default {
             .setName('name')
             .setDescription('Name oder Discord-Tag des Spielers')
             .setRequired(true)
+        )
+        .addIntegerOption((option) =>
+          option
+            .setName('mmr')
+            .setDescription('Manuelle MMR des Spielers (z. B. 1500)')
+            .setRequired(true)
+        )
+        .addStringOption((option) =>
+          option
+            .setName('rank')
+            .setDescription('Rang des Spielers (optional, wird sonst automatisch aus MMR berechnet)')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Supersonic Legend', value: 'Supersonic Legend' },
+              { name: 'Grand Champion', value: 'Grand Champion' },
+              { name: 'Champion', value: 'Champion' },
+              { name: 'Diamond', value: 'Diamond' },
+              { name: 'Platin', value: 'Platin' },
+              { name: 'Gold', value: 'Gold' }
+            )
         )
         .addStringOption((option) =>
           option
@@ -139,7 +159,7 @@ export default {
             if (existingEmoji) {
               try {
                 await existingEmoji.delete('Team-Logo wird aktualisiert');
-              } catch {}
+              } catch { }
             }
 
             const createdEmoji = await interaction.guild.emojis.create({
@@ -150,7 +170,7 @@ export default {
 
             emojiString = createdEmoji.toString();
             logoUrl = createdEmoji.imageURL();
-          } catch {}
+          } catch { }
         }
 
         const { team, isNew } = addOrUpdateTeam(name, emojiString, logoUrl);
@@ -185,16 +205,26 @@ export default {
       } else if (subcommand === 'player') {
         const name = interaction.options.getString('name');
         const tracker = interaction.options.getString('tracker');
+        const mmr = interaction.options.getInteger('mmr');
+        const rank = interaction.options.getString('rank');
 
-        const { player, isNew } = addOrUpdatePlayer(name, tracker);
+        const { player, isNew } = addOrUpdatePlayer(name, tracker, mmr, rank);
         const ping = await resolveMemberPing(interaction.guild, player.name);
 
         const title = isNew
           ? '## ✅ Neuer Spieler hinzugefügt'
           : '## 🔄 Spieler aktualisiert';
 
+        const rankBadge = getRankEmoji(player.rank);
+        const rankPart = rankBadge ? `${rankBadge} ` : '';
+        const mmrDisplay =
+          player.mmr > 0
+            ? `📈 **MMR:** **${player.mmr}** (${rankPart}${player.rank})`
+            : '📈 **MMR:** *(Keine MMR hinterlegt)*';
+
         const lines = [
           `👤 **Spieler:** ${ping} (\`${player.name}\`)`,
+          mmrDisplay,
           `🔗 **Tracker:** [Profil öffnen](${player.tracker})`,
           '',
           '📌 *Der Spieler steht ab sofort in der Autovervollständigung für `/create-team` bereit!*',

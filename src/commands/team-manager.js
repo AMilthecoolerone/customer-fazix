@@ -103,7 +103,13 @@ export default {
         } else {
             const matches = searchPlayers(focused.value);
             await interaction.respond(
-                matches.map((p) => ({ name: p.name, value: p.name }))
+                matches.map((p) => {
+                    const mmrInfo = p.mmr ? ` (${p.mmr} MMR)` : '';
+                    return {
+                        name: `${p.name}${mmrInfo}`.slice(0, 100),
+                        value: p.name,
+                    };
+                })
             );
         }
     },
@@ -132,7 +138,13 @@ export default {
         const mainPlayers = await Promise.all(
             mainInputs.map(async (item) => {
                 const parsed = parseTrackerInput(item.input);
-                const stats = await fetchPlayerStats(parsed.platform, parsed.identifier, parsed.matchedPlayer);
+                const stats = await fetchPlayerStats(
+                    parsed.platform,
+                    parsed.identifier,
+                    parsed.matchedPlayer,
+                    parsed.manualMmr,
+                    parsed.manualRank
+                );
                 return { ...item, ...stats, matchedPlayer: parsed.matchedPlayer };
             })
         );
@@ -140,7 +152,13 @@ export default {
         const subPlayers = await Promise.all(
             subInputs.map(async (item) => {
                 const parsed = parseTrackerInput(item.input);
-                const stats = await fetchPlayerStats(parsed.platform, parsed.identifier, parsed.matchedPlayer);
+                const stats = await fetchPlayerStats(
+                    parsed.platform,
+                    parsed.identifier,
+                    parsed.matchedPlayer,
+                    parsed.manualMmr,
+                    parsed.manualRank
+                );
                 return { ...item, ...stats, matchedPlayer: parsed.matchedPlayer };
             })
         );
