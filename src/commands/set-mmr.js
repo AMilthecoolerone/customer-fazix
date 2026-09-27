@@ -9,9 +9,9 @@ import { setPlayerMmr, searchPlayers, getRankEmoji } from '../utils/rlTracker.js
 
 async function resolveMemberPing(guild, username) {
   if (!guild || !username) return `@${username}`;
-  if (username.startsWith('<@')) return username;
+  if (typeof username === 'string' && username.startsWith('<@')) return username;
 
-  const clean = username.trim().toLowerCase();
+  const clean = String(username).replace(/^@+/, '').trim().toLowerCase();
 
   let member = guild.members.cache.find(
     (m) =>
@@ -31,7 +31,7 @@ async function resolveMemberPing(guild, username) {
     return `<@${member.id}>`;
   }
 
-  return `@${username}`;
+  return `@${clean}`;
 }
 
 export default {
@@ -68,7 +68,7 @@ export default {
 
   async autocomplete(interaction) {
     const focused = interaction.options.getFocused(true);
-    const matches = searchPlayers(focused.value);
+    const matches = searchPlayers(focused.value, interaction.guild);
     await interaction.respond(
       matches.map((p) => {
         const mmrInfo = p.mmr ? ` (${p.mmr} MMR)` : '';
@@ -88,7 +88,7 @@ export default {
     const rank = interaction.options.getString('rank');
 
     try {
-      const { player, isNew } = setPlayerMmr(playerName, mmr, rank);
+      const { player, isNew } = setPlayerMmr(playerName, mmr, rank, interaction.guild);
       const ping = await resolveMemberPing(interaction.guild, player.name);
 
       const rankBadge = getRankEmoji(player.rank);

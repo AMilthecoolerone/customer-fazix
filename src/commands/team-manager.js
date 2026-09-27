@@ -18,9 +18,9 @@ import {
 
 async function resolveMemberPing(guild, username) {
     if (!guild || !username) return `@${username}`;
-    if (username.startsWith('<@')) return username;
+    if (typeof username === 'string' && username.startsWith('<@')) return username;
 
-    const clean = username.trim().toLowerCase();
+    const clean = String(username).replace(/^@+/, '').trim().toLowerCase();
 
     let member = guild.members.cache.find(
         (m) =>
@@ -40,7 +40,7 @@ async function resolveMemberPing(guild, username) {
         return `<@${member.id}>`;
     }
 
-    return `@${username}`;
+    return `@${clean}`;
 }
 
 export default {
@@ -101,7 +101,7 @@ export default {
                 matches.map((t) => ({ name: t.name, value: t.name }))
             );
         } else {
-            const matches = searchPlayers(focused.value);
+            const matches = searchPlayers(focused.value, interaction.guild);
             await interaction.respond(
                 matches.map((p) => {
                     const mmrInfo = p.mmr ? ` (${p.mmr} MMR)` : '';
@@ -137,7 +137,7 @@ export default {
 
         const mainPlayers = await Promise.all(
             mainInputs.map(async (item) => {
-                const parsed = parseTrackerInput(item.input);
+                const parsed = parseTrackerInput(item.input, interaction.guild);
                 const stats = await fetchPlayerStats(
                     parsed.platform,
                     parsed.identifier,
@@ -151,7 +151,7 @@ export default {
 
         const subPlayers = await Promise.all(
             subInputs.map(async (item) => {
-                const parsed = parseTrackerInput(item.input);
+                const parsed = parseTrackerInput(item.input, interaction.guild);
                 const stats = await fetchPlayerStats(
                     parsed.platform,
                     parsed.identifier,

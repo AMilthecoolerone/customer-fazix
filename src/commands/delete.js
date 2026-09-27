@@ -53,7 +53,7 @@ export default {
         matches.map((t) => ({ name: t.name, value: t.name }))
       );
     } else if (subcommand === 'player') {
-      const matches = searchPlayers(focused.value);
+      const matches = searchPlayers(focused.value, interaction.guild);
       await interaction.respond(
         matches.map((p) => {
           const mmrInfo = p.mmr ? ` (${p.mmr} MMR)` : '';
@@ -134,7 +134,7 @@ export default {
         });
       } else if (subcommand === 'player') {
         const name = interaction.options.getString('name');
-        const { success, player } = deletePlayer(name);
+        const { success, player } = deletePlayer(name, interaction.guild);
 
         if (!success) {
           await interaction.editReply({

@@ -16,9 +16,9 @@ const __dirname = path.dirname(__filename);
 
 async function resolveMemberPing(guild, username) {
   if (!guild || !username) return `@${username}`;
-  if (username.startsWith('<@')) return username;
+  if (typeof username === 'string' && username.startsWith('<@')) return username;
 
-  const clean = username.trim().toLowerCase();
+  const clean = String(username).replace(/^@+/, '').trim().toLowerCase();
 
   let member = guild.members.cache.find(
     (m) =>
@@ -38,7 +38,7 @@ async function resolveMemberPing(guild, username) {
     return `<@${member.id}>`;
   }
 
-  return `@${username}`;
+  return `@${clean}`;
 }
 
 export default {
@@ -208,7 +208,7 @@ export default {
         const mmr = interaction.options.getInteger('mmr');
         const rank = interaction.options.getString('rank');
 
-        const { player, isNew } = addOrUpdatePlayer(name, tracker, mmr, rank);
+        const { player, isNew } = addOrUpdatePlayer(name, tracker, mmr, rank, interaction.guild);
         const ping = await resolveMemberPing(interaction.guild, player.name);
 
         const title = isNew
